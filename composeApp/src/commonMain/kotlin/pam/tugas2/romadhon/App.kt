@@ -8,9 +8,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.tooling.preview.Preview
+
 
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -35,14 +34,16 @@ class NewsFeedSimulator {
 
         while (true) {
             delay(2000L)
-            if (newsId % 5 == 0) throw Exception("Koneksi server terputus!")
+            try {
+                if (newsId % 5 == 0) throw Exception("Koneksi server terputus!")
 
-            val randomCategory = categories.random()
-            emit(News(newsId, "Berita Terkini #$newsId", randomCategory))
+                val randomCategory = categories.random()
+                emit(News(newsId, "Berita Terkini #$newsId", randomCategory))
+            } catch (e: Exception) {
+                emit(News(newsId, "ERROR: ${e.message}", "Sistem"))
+            }
             newsId++
         }
-    }.catch { e ->
-        emit(News(0, "ERROR: ${e.message}", "Sistem"))
     }
 
     suspend fun fetchNewsDetail(id: Int): String {
@@ -53,7 +54,6 @@ class NewsFeedSimulator {
 }
 
 @Composable
-@Preview
 fun App() {
     MaterialTheme {
         val simulator = remember { NewsFeedSimulator() }
@@ -64,7 +64,7 @@ fun App() {
 
         LaunchedEffect(Unit) {
             simulator.getNewsStream()
-                .filter { it.category == "Teknologi" || it.category == "Olahraga" }
+                .filter { it.category == "Teknologi" || it.category == "Olahraga" || it.category == "Sistem" }
                 .map { news -> "[Kategori: ${news.category}] ${news.title}" }
                 .collect { formattedNews ->
                     currentNews = formattedNews
@@ -88,13 +88,15 @@ fun App() {
                 coroutineScope.launch {
                     detailText = "Loading detail berita..."
 
-                    // ERROR HANDLING COROUTINES: try-catch block
-                    try {
-                        val detailDeferred = async { simulator.fetchNewsDetail(totalRead) }
-                        detailText = detailDeferred.await()
-                    } catch (e: Exception) {
-                        detailText = "Waduh, terjadi masalah: ${e.message}"
+
+                    val detailDeferred = async {
+                        try {
+                            simulator.fetchNewsDetail(totalRead)
+                        } catch (e: Exception) {
+                            "Waduh, terjadi masalah: ${e.message}"
+                        }
                     }
+                    detailText = detailDeferred.await()
                 }
             }) {
                 Text("Baca Berita Ini")
